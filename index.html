@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quinyx Office Celebration Calendar</title>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<style>
+:root{color-scheme:light}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f4f0;color:#1a1a1a;line-height:1.5;min-height:100vh}
+
+.container{max-width:1200px;margin:0 auto;padding:28px 20px}
+
+/* Setup banner */
+.setup-banner{background:#fff8e6;border:1.5px solid #f0c050;border-radius:12px;padding:14px 18px;margin-bottom:20px;display:none}
+.setup-banner.visible{display:flex;align-items:flex-start;gap:12px}
+.setup-banner-icon{font-size:20px;flex-shrink:0}
+.setup-banner-text{font-size:13px;color:#7a5c00;line-height:1.6}
+.setup-banner-text strong{font-weight:600}
+.setup-banner-text code{background:#fef3c7;border:1px solid #f0c050;border-radius:4px;padding:1px 5px;font-size:12px;font-family:monospace}
+
+/* Header */
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px}
+.header-left{}
+.page-title{font-size:22px;font-weight:700;color:#0a1628;letter-spacing:-.3px}
+.page-sub{font-size:13px;color:#888;margin-top:3px}
+.connection-status{display:flex;align-items:center;gap:6px;font-size:12px;color:#aaa;background:white;border:1px solid #e5e3dc;border-radius:20px;padding:5px 12px;flex-shrink:0;height:fit-content}
+.conn-dot{width:7px;height:7px;border-radius:50%;background:#ccc;flex-shrink:0;transition:background .3s}
+.conn-dot.live{background:#1D9E75}
+.conn-dot.connecting{background:#f0a500;animation:pulse 1s infinite}
+.conn-dot.offline{background:#e24b4a}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* Progress card */
+.progress-card{background:white;border:1px solid #e5e3dc;border-radius:14px;padding:16px 20px;margin-bottom:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.prog-stat{text-align:center;flex-shrink:0}
+.prog-num{font-size:26px;font-weight:700;color:#0a1628;line-height:1}
+.prog-label{font-size:11px;color:#aaa;margin-top:2px}
+.prog-bar-wrap{flex:1;min-width:160px}
+.prog-bar-top{display:flex;justify-content:space-between;margin-bottom:6px}
+.prog-bar-text{font-size:12px;color:#888}
+.prog-pct{font-size:12px;font-weight:600;color:#1D9E75}
+.prog-track{background:#ede9e1;border-radius:100px;height:8px;overflow:hidden}
+.prog-fill{height:100%;background:linear-gradient(90deg,#1D9E75,#1a7a5e);border-radius:100px;transition:width .4s cubic-bezier(.4,0,.2,1)}
+.prog-actions{display:flex;gap:8px;flex-shrink:0}
+.btn-small{font-size:12px;color:#888;background:white;border:1px solid #e5e3dc;border-radius:8px;padding:6px 12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn-small:hover{border-color:#bbb;color:#444}
+.btn-small.danger:hover{border-color:#e24b4a;color:#e24b4a}
+
+/* Tabs */
+.tabs-row{display:flex;gap:4px;background:#ede9e1;padding:4px;border-radius:11px;width:fit-content;margin-bottom:18px}
+.tab{padding:8px 22px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;color:#777;border:none;background:transparent;transition:all .15s}
+.tab.active{background:white;color:#0a1628;box-shadow:0 1px 4px rgba(0,0,0,.1)}
+
+/* Filter */
+.filter-row{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.filter-label{font-size:12px;color:#aaa;font-weight:500}
+.filter-btn{font-size:12px;padding:5px 13px;border-radius:20px;border:1px solid #e5e3dc;background:white;color:#777;cursor:pointer;transition:all .15s}
+.filter-btn:hover{border-color:#bbb;color:#444}
+.filter-btn.active{background:#0a1628;color:white;border-color:#0a1628}
+
+/* Legend */
+.legend{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:#888}
+.leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+
+/* Section */
+.section{display:none}.section.visible{display:block}
+
+/* Stats line */
+.section-stats{font-size:12px;color:#aaa;margin-bottom:12px}
+.section-stats span{font-weight:600;color:#1D9E75}
+
+/* Month grid */
+.months-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.month-card{background:white;border:1px solid #e5e3dc;border-radius:13px;overflow:hidden;transition:border-color .2s}
+.month-card.all-done{border-color:#a7f3d0}
+.month-header{padding:10px 14px;background:#faf9f6;border-bottom:1px solid #e5e3dc;display:flex;align-items:center;justify-content:space-between;transition:background .2s}
+.month-card.all-done .month-header{background:#f0fdf8}
+.month-name{font-size:13px;font-weight:700;color:#0a1628}
+.month-meta{display:flex;align-items:center;gap:8px}
+.month-count{font-size:11px;color:#bbb}
+.month-done-badge{font-size:10px;font-weight:600;color:#1D9E75;background:#f0fdf4;border:1px solid #a7f3d0;border-radius:20px;padding:2px 7px}
+.events-list{padding:6px 8px;display:flex;flex-direction:column;gap:2px}
+.empty-month{font-size:11px;color:#ccc;padding:10px 10px 12px;font-style:italic}
+
+/* Event row */
+.event-row{border-radius:9px;transition:background .15s}
+.event-row.done{background:#f0fdf4}
+.event-row.hidden-f{display:none}
+.ev-head{display:flex;align-items:center;gap:8px;padding:7px 8px;cursor:pointer;border-radius:9px}
+.ev-head:hover{background:#f5f4f0}
+.event-row.done .ev-head:hover{background:#e8fdf0}
+
+.ev-check{width:17px;height:17px;border-radius:4px;border:1.5px solid #ddd;background:white;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s;position:relative}
+.ev-check:hover{border-color:#1D9E75}
+.ev-check.checked{background:#1D9E75;border-color:#1D9E75}
+.ev-check.checked::after{content:'✓';color:white;font-size:11px;font-weight:700;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
+
+.ev-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:1px}
+.ev-info{flex:1;min-width:0}
+.ev-name{font-size:12px;font-weight:500;color:#1a1a1a;line-height:1.3}
+.event-row.done .ev-name{text-decoration:line-through;color:#aaa}
+.ev-sub{font-size:10px;color:#bbb;margin-top:1px}
+.ev-sub.cause{color:#7F77DD;font-weight:500}
+.ev-arrow{font-size:11px;color:#ccc;transition:transform .2s;flex-shrink:0;margin-left:2px}
+.ev-arrow.open{transform:rotate(180deg)}
+.ev-detail{display:none;padding:6px 8px 10px 33px}
+.ev-detail.open{display:block}
+.ev-body{font-size:12px;color:#666;line-height:1.6;margin-bottom:8px}
+.ideas-label{font-size:10px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px}
+.ideas-chips{display:flex;flex-wrap:wrap;gap:4px}
+.idea-chip{background:#f5f4f0;border:1px solid #e5e3dc;border-radius:20px;padding:3px 9px;font-size:11px;color:#555}
+
+/* Popup */
+.popup-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.popup-cat-card{background:white;border:1px solid #e5e3dc;border-radius:13px;overflow:hidden;transition:border-color .2s}
+.popup-cat-card.all-done{border-color:#a7f3d0}
+.popup-cat-header{padding:10px 14px 9px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #e5e3dc;background:#faf9f6}
+.popup-cat-card.all-done .popup-cat-header{background:#f0fdf8}
+.cat-icon-box{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.cat-title{font-size:13px;font-weight:700;color:#0a1628}
+.cat-sub{font-size:11px;color:#bbb}
+.popup-items-list{padding:6px 8px;display:flex;flex-direction:column;gap:2px}
+.popup-item{border-radius:9px;transition:background .15s}
+.popup-item.done{background:#f0fdf4}
+.popup-item.hidden-f{display:none}
+.pi-head{display:flex;align-items:center;gap:8px;padding:7px 8px;cursor:pointer;border-radius:9px}
+.pi-head:hover{background:#f5f4f0}
+.popup-item.done .pi-head:hover{background:#e8fdf0}
+.pi-info{flex:1;min-width:0}
+.pi-name{font-size:12px;font-weight:500;color:#1a1a1a}
+.popup-item.done .pi-name{text-decoration:line-through;color:#aaa}
+.pi-sub{font-size:10px;color:#bbb;margin-top:1px}
+.effort-badge{font-size:10px;padding:2px 7px;border-radius:10px;flex-shrink:0;white-space:nowrap}
+.e1{background:#EAF3DE;color:#3B6D11}
+.e2{background:#FAEEDA;color:#854F0B}
+.pi-detail{display:none;padding:6px 8px 10px 33px}
+.pi-detail.open{display:block}
+
+@media(max-width:640px){
+  .container{padding:16px 12px}
+  .months-grid,.popup-grid{grid-template-columns:1fr}
+  .prog-stat{display:none}
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Setup banner (shown if config not replaced) -->
+  <div class="setup-banner" id="setup-banner">
+    <div class="setup-banner-icon">⚠️</div>
+    <div class="setup-banner-text">
+      <strong>Firebase not connected yet.</strong> Open <code>index.html</code> in a text editor, find the <code>firebaseConfig</code> block near the top of the &lt;script&gt; section, and paste in your Firebase project credentials. See the <strong>SETUP.md</strong> file for step-by-step instructions.
+    </div>
+  </div>
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-left">
+      <div class="page-title">🎉 Office Celebration Calendar</div>
+      <div class="page-sub">Quinyx Social Committee — shared tracker</div>
+    </div>
+    <div class="connection-status" id="conn-status">
+      <div class="conn-dot connecting" id="conn-dot"></div>
+      <span id="conn-text">Connecting…</span>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-card">
+    <div class="prog-stat">
+      <div class="prog-num" id="done-count">0</div>
+      <div class="prog-label">done</div>
+    </div>
+    <div class="prog-stat">
+      <div class="prog-num" id="total-count">0</div>
+      <div class="prog-label">total</div>
+    </div>
+    <div class="prog-bar-wrap">
+      <div class="prog-bar-top">
+        <div class="prog-bar-text">Activities completed this year</div>
+        <div class="prog-pct" id="prog-pct">0%</div>
+      </div>
+      <div class="prog-track"><div class="prog-fill" id="prog-fill" style="width:0%"></div></div>
+    </div>
+    <div class="prog-actions">
+      <button class="btn-small" onclick="exportDone()">📋 Copy done list</button>
+      <button class="btn-small danger" onclick="resetAll()">Reset all</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs-row">
+    <button class="tab active" onclick="switchTab('cal')">📅 Celebrations calendar</button>
+    <button class="tab" onclick="switchTab('popup')">💡 Pop-up ideas bank</button>
+  </div>
+
+  <!-- CALENDAR SECTION -->
+  <div class="section visible" id="sec-cal">
+    <div class="legend">
+      <div class="leg"><div class="leg-dot" style="background:#0072c6"></div>Swedish tradition</div>
+      <div class="leg"><div class="leg-dot" style="background:#888780"></div>Global</div>
+      <div class="leg"><div class="leg-dot" style="background:#1D9E75"></div>Food tradition</div>
+      <div class="leg"><div class="leg-dot" style="background:#EF9F27"></div>Seasonal</div>
+      <div class="leg"><div class="leg-dot" style="background:#7F77DD"></div>Cause &amp; awareness</div>
+    </div>
+    <div class="filter-row">
+      <span class="filter-label">Show:</span>
+      <button class="filter-btn active" onclick="setFilter('cal','all',this)">All</button>
+      <button class="filter-btn" onclick="setFilter('cal','todo',this)">To do</button>
+      <button class="filter-btn" onclick="setFilter('cal','done',this)">Done ✓</button>
+    </div>
+    <div class="section-stats" id="cal-stats"></div>
+    <div class="months-grid" id="months-grid"></div>
+  </div>
+
+  <!-- POPUP SECTION -->
+  <div class="section" id="sec-popup">
+    <div class="filter-row">
+      <span class="filter-label">Show:</span>
+      <button class="filter-btn active" onclick="setFilter('popup','all',this)">All</button>
+      <button class="filter-btn" onclick="setFilter('popup','todo',this)">To do</button>
+      <button class="filter-btn" onclick="setFilter('popup','done',this)">Done ✓</button>
+    </div>
+    <div class="section-stats" id="popup-stats"></div>
+    <div class="popup-grid" id="popup-grid"></div>
+  </div>
+
+</div>
+
+<script>
+// ─── FIREBASE CONFIG ────────────────────────────────────────────────────────
+// Replace the values below with your own Firebase project credentials.
+// Find them in: Firebase Console → Project Settings → Your apps → Web app → Config
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyBhaP2aP39R6TdfwDolc95LiVVU4MSMwgw",
+  authDomain:        "quinyx-office-events-calendar.firebaseapp.com",
+  databaseURL:       "https://quinyx-office-events-calendar-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId:         "quinyx-office-events-calendar",
+  storageBucket:     "quinyx-office-events-calendar.firebasestorage.app",
+  messagingSenderId: "768884301127",
+  appId:             "1:768884301127:web:99e4756bfc37dbd80b8062"
+};
+
+// ─── DATA ───────────────────────────────────────────────────────────────────
+
+const C={sw:"#0072c6",gl:"#888780",fd:"#1D9E75",se:"#EF9F27",ca:"#7F77DD"};
+
+const CAL_EVENTS=[
+  {id:"jan-1",month:0,day:"Jan 13",name:"Tjugondag Knut",tag:"Swedish tradition",col:C.sw,body:"The official end of Christmas in Sweden — the tree is 'plundered'. A playful day for nostalgia and sweet leftovers.",ideas:["Bring in leftover Christmas sweets","'Plunder' the office Christmas decoration with a ceremony","Pepparkakor biscuit-breaking competition"]},
+  {id:"jan-2",month:0,day:"Late Jan",name:"Fettisdagen — Semla Day",tag:"Swedish food tradition",col:C.fd,body:"The day to eat semla — a cardamom bun filled with almond paste and whipped cream. Date shifts with Easter.",ideas:["Order a big batch of semlor from a local bakery","Set up a semla station with coffee","'Best semla' vote from different bakeries"]},
+  {id:"feb-1",month:1,day:"Last Wed Feb",name:"Pink Shirt Day",tag:"Anti-bullying awareness",col:C.ca,cause:true,body:"Worn in solidarity against bullying. A good moment to talk about workplace kindness.",ideas:["Everyone wears something pink","Leave pink 'kind note' cards on desks","Donation jar for an anti-bullying organisation"]},
+  {id:"feb-2",month:1,day:"Feb 14",name:"Valentine's Day",tag:"Global",col:C.gl,body:"A low-key excuse for sweet treats and team appreciation.",ideas:["Heart-shaped cookies or chocolates on desks","Anonymous colleague appreciation cards","Pink/red candy bowl in the kitchen"]},
+  {id:"mar-1",month:2,day:"Mar 8",name:"International Women's Day",tag:"Cause & awareness",col:C.ca,cause:true,body:"A day to celebrate women's achievements. Give it substance — not just flowers.",ideas:["Give out a book about a famous woman (Michelle Obama, Glennon Doyle, Hidden Figures…)","'Who is she?' quiz — 10 questions on famous women in history","Flowers on every desk","Nominate a woman colleague for a shoutout on Slack"]},
+  {id:"mar-2",month:2,day:"Mar 14",name:"Pi Day",tag:"Global fun",col:C.gl,body:"3/14 = 3.14… The maths world's favourite day.",ideas:["Bring in actual pies — sweet and savoury","Pi-reciting contest (winner gets a pie)","Pizza party"]},
+  {id:"mar-3",month:2,day:"Mar 21",name:"World Down Syndrome Day — Rock Your Socks",tag:"Cause & awareness",col:C.ca,cause:true,body:"On 3/21, people wear mismatched, colourful socks in solidarity with people with Down Syndrome.",ideas:["Invite everyone to wear their wildest, most mismatched socks","Give out a pair of fun socks as a small gift","Group photo: everyone holds up one foot","Donation box for a Down Syndrome organisation"]},
+  {id:"mar-4",month:2,day:"Mar 25",name:"Våffeldagen — Waffle Day",tag:"Swedish food tradition",col:C.fd,body:"One of the most beloved Swedish food days. Every Swedish office should celebrate this.",ideas:["Bring a waffle iron — make waffles together","Jam, cream, and toppings bar","Heart-shaped waffles with sylt och grädde"]},
+  {id:"apr-1",month:3,day:"Apr 1",name:"April Fools' Day",tag:"Global fun",col:C.gl,body:"Harmless pranks and laughs. Great team-bonding if kept light.",ideas:["Wrap someone's desk in newspaper","'Fake' office announcement","Prank snack: jelly beans vs. look-alike candy"]},
+  {id:"apr-2",month:3,day:"Apr 2",name:"World Autism Awareness Day",tag:"Cause & awareness",col:C.ca,cause:true,body:"A day to raise awareness and celebrate neurodiversity.",ideas:["Blue decorations and blue treats","Fact card on each desk: '1 in 100 people are autistic'","'Quiet hour' — reduce noise and meetings for one hour","Encourage pronoun and communication preference sharing"]},
+  {id:"apr-3",month:3,day:"Apr 22",name:"Earth Day",tag:"Global cause",col:C.ca,cause:true,body:"The world's largest environmental movement.",ideas:["Plant seeds together — everyone takes a pot home","Swap table: bring something to give, take something","Green smoothie bar","'Go paperless today' challenge"]},
+  {id:"apr-4",month:3,day:"Apr 30",name:"Valborg",tag:"Swedish seasonal",col:C.se,body:"Walpurgis Night — the arrival of spring.",ideas:["Outdoor after-work in a park","Spring cocktails or mocktails","Flower and greenery decorations"]},
+  {id:"may-1",month:4,day:"May 1",name:"Första Maj",tag:"Swedish",col:C.sw,body:"International Workers' Day and a public holiday in Sweden.",ideas:["Relaxed fika with team appreciation notes","Early finish celebration","Outdoor lunch"]},
+  {id:"may-2",month:4,day:"May 4",name:"Star Wars Day",tag:"Global fun",col:C.gl,body:"'May the 4th be with you.' Zero-pressure pop culture fun.",ideas:["Galaxy cupcakes or themed snacks","Best desk decoration vote","Movie quote quiz over fika"]},
+  {id:"may-3",month:4,day:"May 17",name:"Syttende Mai",tag:"Scandinavian",col:C.sw,body:"Norway's Constitution Day — a big deal across Scandinavia.",ideas:["Norwegian heart-shaped waffles with sour cream and jam","Bunad-themed decorations","Norwegian word of the day"]},
+  {id:"may-4",month:4,day:"Last Sun May",name:"Mother's Day",tag:"Swedish tradition",col:C.ca,cause:true,body:"In Sweden, Mother's Day falls on the last Sunday of May.",ideas:["Set up a card-making station with materials the week before","Provide envelopes and stamps so people can actually mail it","'Tell us one thing about your mum' board in the kitchen","Small flower for people to take home"]},
+  {id:"jun-1",month:5,day:"Jun 6",name:"Sveriges Nationaldag",tag:"Swedish",col:C.sw,body:"Sweden's National Day. Flags, blue and yellow, and Swedish pride.",ideas:["Prinsesstårta or kanelbullar","Blue and yellow decorations","Swedish history trivia quiz"]},
+  {id:"jun-2",month:5,day:"Jun (whole month)",name:"Pride Month",tag:"Cause & awareness",col:C.ca,cause:true,body:"A global celebration of LGBTQ+ identity and rights.",ideas:["Rainbow decorations and rainbow cake","Allyship pledge board","Share pronouns in Slack bios","Donate as a team to RFSL or local Pride org","Rainbow treat table on a Friday"]},
+  {id:"jun-3",month:5,day:"Jun 19–21",name:"Midsommar",tag:"Swedish seasonal",col:C.se,body:"The most Swedish celebration of the year. Flower crowns, strawberries, herring, snaps, and the maypole dance.",ideas:["Strawberries and cream station","Flower crown making workshop","Snaps + sill lunch (or alcohol-free)","Maypole decoration"]},
+  {id:"jul-1",month:6,day:"Jul — any day",name:"Surprise ice cream day",tag:"Seasonal treat",col:C.se,body:"A spontaneous ice cream pop-up on a hot summer day. The surprise is the point.",ideas:["Mixed box of Magnum, Piggelin, or tubs in the kitchen","Toppings bar: sprinkles, sauces, wafers","Slack: 'Kitchen. Now. 🍦'"]},
+  {id:"aug-1",month:7,day:"Aug (2nd Fri)",name:"Kräftskiva",tag:"Swedish tradition",col:C.fd,body:"Crayfish party! One of the most iconic Swedish summer traditions.",ideas:["Order crayfish + dill bread for the team","Paper lanterns and party hats","Print snaps songs — teach the team to sing","Cheese pie and bread as sides"]},
+  {id:"sep-1",month:8,day:"1st week Sep",name:"Höstfika — welcome back from summer",tag:"Swedish seasonal",col:C.se,body:"September is when everyone drifts back from summer holidays and the cosy season begins.",ideas:["Apple and cinnamon treats to mark the season change","'Best summer moment' board — people pin a photo or a sentence","Warm drinks station: chai, hot apple cider, oat hot chocolate","Autumn flowers, candles, and the first blanket of the season"]},
+  {id:"sep-2",month:8,day:"Sep 19",name:"Talk Like a Pirate Day",tag:"Global fun",col:C.gl,body:"Deliberately silly, zero-stakes fun for the whole office.",ideas:["Eye patches and pirate hats at desks","Office treasure hunt","Rum cake or skull-shaped cookies"]},
+  {id:"sep-3",month:8,day:"Sep 22",name:"First day of autumn",tag:"Seasonal",col:C.se,body:"The autumn equinox. 'Mysig höst' is a genuine Swedish cultural feeling — lean into it.",ideas:["Hot mulled apple juice or cider station","Apple and cinnamon baked goods","Candles on every desk for the day","'Favourite autumn thing' Slack poll"]},
+  {id:"sep-4",month:8,day:"Sep 26",name:"European Day of Languages",tag:"Global / multilingual",col:C.gl,body:"Celebrating linguistic diversity across Europe. For Quinyx — operating across Sweden, Germany, Finland, the Netherlands, the UK and more — this is a natural fit.",ideas:["'How do you say fika in your language?' post-it wall","Language quiz: guess the country from a food word","Everyone teaches the team one phrase from their language","International snack table","Word of the day on Slack for the whole week"]},
+  {id:"sep-5",month:8,day:"Sep 29",name:"World Heart Day",tag:"Cause & awareness",col:C.ca,cause:true,body:"A global day to raise awareness of heart disease.",ideas:["Red heart decorations on desks","Healthy snack table: berries, nuts, dark chocolate","Heart-shaped cookies","Encourage a lunchtime walk together"]},
+  {id:"sep-6",month:8,day:"Late Sep",name:"Surströmming challenge",tag:"Very Swedish adventure",col:C.fd,body:"The fermented herring season. Unforgettable, hilarious, and deeply Swedish.",ideas:["Open the tin OUTSIDE — always outside","Full setup: tunnbröd, mandelpotatis, red onion, crème fraîche","Non-surströmming backup: gravlax or smoked salmon","Score card: smell / taste / regret"]},
+  {id:"oct-0",month:9,day:"Oct (whole month)",name:"Breast Cancer Awareness — Pink October",tag:"Cause & awareness",col:C.ca,cause:true,body:"October is Breast Cancer Awareness Month.",ideas:["Give out pink ribbon stickers for laptops/desks","Pink treats all month: pink macarons, pink frosted cookies","Info card about self-screening","Team donation to Cancerfonden","'Wear pink Friday' one Friday in October"]},
+  {id:"oct-1",month:9,day:"Oct 1",name:"International Coffee Day",tag:"Global",col:C.gl,body:"Perfect for a Swedish office — Sweden is one of the world's top coffee-consuming nations.",ideas:["Guest barista or specialty coffee station","'Best coffee order' team survey","Different origins to taste side-by-side"]},
+  {id:"oct-2",month:9,day:"Oct 4",name:"Kanelbullens Dag",tag:"Swedish food tradition",col:C.fd,body:"Cinnamon Bun Day — the most beloved Swedish food day. Non-negotiable.",ideas:["Order or bake a huge batch of kanelbullar","Classic vs. cardamom bun taste-off","Make the whole office smell amazing all day"]},
+  {id:"oct-3",month:9,day:"Oct 10",name:"World Mental Health Day",tag:"Cause & awareness",col:C.ca,cause:true,body:"A day to open up about mental health at work.",ideas:["'How are you really?' anonymous check-in board (sticky notes)","Guided 10-min mindfulness session at lunch","Leave a positive note on a colleague's desk","Share mental health resources (1177, Mind Sweden)","'No meeting' afternoon"]},
+  {id:"oct-4",month:9,day:"Oct 31",name:"Halloween",tag:"Global",col:C.gl,body:"Getting bigger in Sweden every year. Costumes, candy, and spooky fun.",ideas:["Pumpkin carving competition","Costume contest with a prize","Spooky candy bowl","Office decoration challenge by team"]},
+  {id:"nov-0",month:10,day:"Nov (whole month)",name:"Movember",tag:"Cause & awareness",col:C.ca,cause:true,body:"Raises awareness for men's health — prostate cancer, testicular cancer, and mental health.",ideas:["Register as a Quinyx team on movember.com","Progress photo wall: moustache updates","Best moustache competition at end of month","Fundraising bake sale or candy jar","Fake moustache day for those who can't grow one"]},
+  {id:"nov-1",month:10,day:"Nov 6",name:"Gustaf Adolfsdagen",tag:"Swedish tradition",col:C.sw,body:"Celebrated especially in Gothenburg. Eat a cream pastry with his portrait in chocolate.",ideas:["Order Gustaf Adolf pastries from a Swedish bakery","Mini history card on the desks","Gothenburg-themed fika"]},
+  {id:"nov-2",month:10,day:"Nov 11",name:"Mårtensgås",tag:"Swedish tradition",col:C.fd,body:"St. Martin's Day — a Skåne roast goose tradition.",ideas:["Goose-inspired lunch out","'Svart soppa' tasting for the adventurous","Southern Swedish food theme"]},
+  {id:"nov-3",month:10,day:"Nov 13",name:"World Kindness Day",tag:"Global cause",col:C.ca,cause:true,body:"A day dedicated to making the world a kinder place.",ideas:["Anonymous kind note cards — leave one on any desk","'Pay it forward' coffee","Gratitude wall: write what you appreciate about a colleague","Leave sweets on someone's desk unexpectedly"]},
+  {id:"nov-4",month:10,day:"2nd Sun Nov",name:"Father's Day",tag:"Swedish tradition",col:C.ca,cause:true,body:"In Sweden, Father's Day is the second Sunday of November.",ideas:["Card-making station with materials + stamps to mail it","'Tell us one thing about your dad' board in the kitchen","Bring a classic 'dad snack' — nuts, salmiak, crackers"]},
+  {id:"nov-5",month:10,day:"Nov 19",name:"International Men's Day",tag:"Global cause",col:C.ca,cause:true,body:"A day to talk about men's mental health, wellbeing, and positive role models.",ideas:["Share men's mental health resources on Slack","'Shoutout your male role model' Slack thread","Blue-themed treat table"]},
+  {id:"nov-6",month:10,day:"Nov (4th Thu)",name:"Thanksgiving",tag:"Global",col:C.gl,body:"A lovely occasion for an international team potluck.",ideas:["International potluck: everyone brings a dish","Gratitude board with sticky notes","Pumpkin or pecan pie in the kitchen"]},
+  {id:"dec-1",month:11,day:"Dec 3",name:"International Day of Persons with Disabilities",tag:"Cause & awareness",col:C.ca,cause:true,body:"A UN day promoting disability rights and inclusion in the workplace.",ideas:["Share one accessibility improvement made at Quinyx","Leave an info card about invisible disabilities","Donation to Funktionsrätt Sverige"]},
+  {id:"dec-2",month:11,day:"Dec 10",name:"Nobeldagen",tag:"Swedish prestige",col:C.sw,body:"Nobel Prize award ceremony in Stockholm.",ideas:["Nobel-themed after-work with a speech","Nobel trivia quiz","Champagne or sparkling wine toast at 5pm"]},
+  {id:"dec-3",month:11,day:"Dec 13",name:"Luciadagen",tag:"Swedish tradition",col:C.sw,body:"St. Lucia Day — candlelit atmosphere, Lucia songs, and saffron buns.",ideas:["Lussekatter + pepparkakor fika","Play Lucia songs in the morning","Candles and cosy morning atmosphere","Glögg station"]},
+  {id:"dec-4",month:11,day:"Mid Dec",name:"Julbord & Glögg party",tag:"Swedish Christmas",col:C.se,body:"The Swedish Christmas table and mulled wine.",ideas:["Glögg + non-alcoholic version","Swedish Christmas food: meatballs, janssons, risgrynsgröt","Gingerbread house decorating competition","Christmas jumper day"]}
+];
+
+const POPUP_CATS=[
+  {id:"treats",icon:"🍬",bg:"#FAEEDA",title:"Surprise treat drops",sub:"Just set it out — no prep needed",items:[
+    {id:"tr-1",name:"Mystery candy bowl",sub:"Unusual flavours, no label",e:1,body:"Put out a bowl of unexpected candy — international sweets, unusual Swedish flavours. No explanation needed.",how:["Buy one international candy bag","Remove packaging, leave bowl with a tiny '?' sign","Watch the conversations start"]},
+    {id:"tr-2",name:"Bun of the month",sub:"Random Tuesday pick-me-up",e:1,body:"Pick a random Tuesday and show up with a different bun each month — kardemummabullar, chokladboll, dammsugare.",how:["Rotate monthly bun type","Post on Slack: 'Surprise in the kitchen 👀'","Let people discover it"]},
+    {id:"tr-3",name:"Ice cream surprise",sub:"Unannounced, any season",e:1,body:"Show up with a box of Magnum or Piggelin on any random day. February ice cream hits harder than July.",how:["Buy mixed box","Slack: 'Kitchen. Now. 🍦'","No occasion needed"]},
+    {id:"tr-4",name:"Popcorn bar",sub:"4 flavours to try side by side",e:1,body:"Set out 4 bags of different popcorn — sweet, salty, caramel, truffle — and let people graze.",how:["Buy 4 different varieties","Pour into bowls, label flavours","Optional: rate your fave sticker sheet"]},
+    {id:"tr-5",name:"Donut wall",sub:"On a random Wednesday",e:2,body:"Stack donuts on a tiered stand. The visual impact is half the fun — people photograph before eating.",how:["Order 1–2 dozen mixed donuts","Arrange on tiered stand or wire rack","Post a photo in Slack before announcing"]},
+    {id:"tr-6",name:"Churros moment",sub:"With chocolate and caramel dip",e:2,body:"Buy frozen churros from ICA/Coop, bake them, and set out chocolate + caramel dip.",how:["Frozen churros from ICA/Coop","Nutella + caramel sauce as dips","Dust with cinnamon sugar","Serve warm"]}
+  ]},
+  {id:"tasting",icon:"🔬",bg:"#E1F5EE",title:"Tastings & degustations",sub:"Gather around, debate, vote",items:[
+    {id:"ta-1",name:"Blind chocolate tasting",sub:"Origins or dark vs. milk vs. white",e:2,body:"Buy 4–5 different chocolate bars, break into numbered pieces. Let people score each one.",how:["Buy 4–5 bars: 70%, 85%, milk, white, one single-origin","Break into numbered pieces on plates","Hand out score cards","Reveal and compare results"]},
+    {id:"ta-2",name:"Swedish vs. international candy",sub:"Head-to-head vote",e:1,body:"Line up classic Swedish sweets against international ones. Great for getting international colleagues to try Swedish classics.",how:["5–6 Swedish vs. 5–6 international sweets","Vote on paper or Teams poll","Announce the winning country"]},
+    {id:"ta-3",name:"Coffee origins tasting",sub:"3 beans, blind scores",e:2,body:"Brew 3 different coffee origins side by side. Label A, B, C. People score on taste, acidity, and strength.",how:["Source 3 different beans or ground bags","Brew simultaneously in separate cafetieres","Score card: aroma / taste / body","Reveal origins at the end"]},
+    {id:"ta-4",name:"Hot sauce roulette",sub:"Mild to extreme — dare element",e:1,body:"Line up 5 hot sauces from mild to nuclear. Dip a chip and rate each.",how:["Buy a hot sauce variety pack","Chips or bread for dipping","Milk or ice cream on standby","Dare prize for finishing the hottest"]},
+    {id:"ta-5",name:"Chips from 5 countries",sub:"Guess the country of origin",e:1,body:"Buy crisps from different countries, number the bowls, and ask people to guess the country.",how:["Order international crisps","Number the bowls, remove packaging","People write down their guesses","Reveal and vote on best flavour"]},
+    {id:"ta-6",name:"Jam & bread tasting",sub:"Swedish regional jams",e:1,body:"Line up lingonberry, cloudberry, sea buckthorn, and rose hip with knäckebröd.",how:["Buy 5–6 different Swedish jams","Set out with knäckebröd and butter","Small labels with the berry name","Vote on favourite"]}
+  ]},
+  {id:"games",icon:"🔍",bg:"#E6F1FB",title:"Hunts & games",sub:"Get people moving and competing",items:[
+    {id:"ga-1",name:"Office candy hunt",sub:"Hide 40–50 sweets, one Slack message",e:2,body:"Hide individually wrapped sweets around the office. Send one Slack message. First to find 10 wins a prize.",how:["Buy 40–50 individually wrapped sweets","Hide them before people arrive","Post on Slack with the number hidden","Hide one 'golden sweet' for a special prize"]},
+    {id:"ga-2",name:"Blindfolded taste test",sub:"Guess the flavour, crowd watches",e:2,body:"Volunteers are blindfolded and fed mystery foods. They guess. The crowd watches and reacts.",how:["Prepare 8–10 different foods in small cups","Blindfold volunteers one at a time","Audience keeps score","Prize for most correct guesses"]},
+    {id:"ga-3",name:"Sweet trivia quiz",sub:"Prize: big box of candy",e:2,body:"10-question quiz — mix general knowledge, Quinyx trivia, and food questions.",how:["Use Mentimeter or Teams poll for live answers","Mix: general / Swedish culture / food / Quinyx trivia","Keep it to 15 minutes","Announce winner with a candy haul"]},
+    {id:"ga-4",name:"Golden ticket",sub:"One person finds something special",e:1,body:"Tape a golden envelope somewhere in the office. Post on Slack: 'Something golden is hiding today.' No other clues.",how:["Write 'You found it!' on a golden envelope","Put a voucher or treat inside","Tape it somewhere semi-hidden","Post the hint on Slack and wait"]},
+    {id:"ga-5",name:"Fika roulette",sub:"Random cross-team pairing",e:1,body:"Randomly pair people across teams for a 15-minute coffee break. Breaks silos and forces new conversations.",how:["Use a random name picker or Slackbot","Post pairs on Slack Monday morning","15-min window for the fika date","Repeat monthly"]}
+  ]},
+  {id:"cause-popups",icon:"💜",bg:"#EEEDFE",title:"Cause-based pop-ups",sub:"Make awareness days feel real",items:[
+    {id:"cp-1",name:"Card station — Mother's & Father's Day",sub:"Write a card, mail it today",e:1,body:"Set up a table with card-making supplies before Mother's Day (last Sun May) and Father's Day (2nd Sun Nov). Provide stamps.",how:["Blank cards, pens, stickers, decorations","Envelopes + a set of stamps available","Sign: 'Make a card for someone who raised you'","Optional: sticky note wall with parent memories"]},
+    {id:"cp-2",name:"Sock gifting — Down Syndrome Day",sub:"Mar 21 — give everyone a pair",e:2,body:"Buy a pack of fun, mismatched socks and hand one pair to every person who comes in.",how:["Buy multipack of colourful socks (Åhlens, H&M, or online)","Leave one pair on each desk before people arrive","Small card: 'World Down Syndrome Day — Rock Your Socks'","Group photo: everyone holds up a foot"]},
+    {id:"cp-3",name:"Book drop — Women's Day",sub:"Mar 8 — a book on every desk",e:2,body:"Order one book per person about a famous or inspiring woman. Leave on their desk on March 8th.",how:["Pick 2–3 titles, order a mix (Michelle Obama, Malala, Glennon Doyle, Hidden Figures…)","Place on desks before the day starts","Card: 'Happy International Women's Day — from the social committee'","Slack thread: 'Which book did you get?'"]},
+    {id:"cp-4",name:"Pink ribbon table — Breast Cancer",sub:"October — pink treats + ribbons",e:1,body:"Set up a small pink corner: pink ribbon stickers, pink treats, and an info card about breast screening.",how:["Pink ribbon stickers (Cancerfonden sell them)","Pink macarons, frosted cookies, or pink candy","Info card: how to self-check + Cancerfonden QR code","Team donation link on the table"]},
+    {id:"cp-5",name:"Moustache wall — Movember",sub:"November — track the growth",e:1,body:"Designate a wall for Movember progress photos. Weekly updates of growing (or fake) moustaches.",how:["Print a blank 'Movember wall' with team names","Weekly photo update: real or fake moustache","Charity jar or movember.com team page","End-of-month award: best, worst, most creative moustache"]},
+    {id:"cp-6",name:"Kind note wall — Kindness Day",sub:"Nov 13 — anonymous appreciation",e:1,body:"Put up a board with blank cards and pens. Leave a kind note for anyone — signed or anonymous.",how:["Blank coloured cards + pens near the board","Prompt: 'Leave a kind note for anyone in the office'","Read aloud at end of day (with permission)","Photo of the full board posted on Slack"]}
+  ]},
+  {id:"cultural",icon:"🌍",bg:"#E1F5EE",title:"Cultural & community",sub:"Get to know each other better",items:[
+    {id:"cu-1",name:"Bring your hometown treat",sub:"Show where you're from",e:1,body:"Anyone who feels like it brings a snack or food item from their home country or hometown.",how:["Announce a week in advance on Slack","No obligation — whoever wants to join","Country flag or name card by each item","Optional: 30-second story about the food"]},
+    {id:"cu-2",name:"Mystery snack swap",sub:"Everyone brings something unknown",e:1,body:"Everyone brings ONE wrapped snack nobody else has tried. Swap randomly.",how:["Announce a week before","Each person brings one mystery snack in a bag","Swap randomly (draw names)","Open together and react — no judgment allowed"]},
+    {id:"cu-3",name:"Country of the month",sub:"Snacks and facts from one country",e:2,body:"Pick a different country each month, set up a snack table, and add a few fun facts on a card.",how:["Pick a country — rotate who nominates","Source 4–5 snacks (online or specialty stores)","Print a simple A5 card with 3 facts","Rotate who 'hosts' the country each month"]}
+  ]}
+];
+
+const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+// ─── FIREBASE INIT ─────────────────────────────────────────────────────────
+
+const IS_CONFIGURED = !firebaseConfig.apiKey.startsWith("PASTE_");
+
+let db, checkedRef, state = {};
+let calFilter = "all", popupFilter = "all";
+
+if (IS_CONFIGURED) {
+  firebase.initializeApp(firebaseConfig);
+  db = firebase.database();
+  checkedRef = db.ref("checked");
+
+  // Real-time listener — updates ALL users when anyone ticks a box
+  checkedRef.on("value", snapshot => {
+    state = snapshot.val() || {};
+    syncAllUI();
+    updateProgress();
+  });
+
+  // Connection status indicator
+  db.ref(".info/connected").on("value", snap => {
+    const live = snap.val();
+    const dot = document.getElementById("conn-dot");
+    const txt = document.getElementById("conn-text");
+    dot.className = "conn-dot " + (live ? "live" : "offline");
+    txt.textContent = live ? "Live — shared" : "Offline";
+  });
+} else {
+  // Show setup banner, use in-memory fallback
+  document.getElementById("setup-banner").classList.add("visible");
+  const dot = document.getElementById("conn-dot");
+  const txt = document.getElementById("conn-text");
+  dot.className = "conn-dot offline";
+  txt.textContent = "Not connected";
+}
+
+// ─── STATE HELPERS ─────────────────────────────────────────────────────────
+
+function toggleDone(id) {
+  if (IS_CONFIGURED) {
+    if (state[id]) checkedRef.child(id).remove();
+    else checkedRef.child(id).set(true);
+    // UI update happens via the listener
+  } else {
+    // Fallback: in-memory only
+    if (state[id]) delete state[id]; else state[id] = true;
+    syncAllUI();
+    updateProgress();
+  }
+}
+
+function resetAll() {
+  if (!confirm("Reset ALL checkboxes for everyone on the team? This cannot be undone.")) return;
+  if (IS_CONFIGURED) checkedRef.remove();
+  else { state = {}; syncAllUI(); updateProgress(); }
+}
+
+// ─── UI SYNC ───────────────────────────────────────────────────────────────
+
+function syncAllUI() {
+  document.querySelectorAll("[data-item-id]").forEach(row => {
+    const id = row.dataset.itemId;
+    const isDone = !!state[id];
+    row.classList.toggle("done", isDone);
+    const check = row.querySelector(".ev-check");
+    if (check) check.classList.toggle("checked", isDone);
+  });
+  applyFilters();
+  updateBadges();
+}
+
+function updateBadges() {
+  MONTHS.forEach((m, mi) => {
+    const card = document.getElementById("mc-" + mi);
+    if (!card) return;
+    const evs = CAL_EVENTS.filter(e => e.month === mi);
+    if (!evs.length) return;
+    const allDone = evs.every(e => state[e.id]);
+    card.classList.toggle("all-done", allDone);
+    let badge = card.querySelector(".month-done-badge");
+    if (allDone && !badge) {
+      badge = document.createElement("span");
+      badge.className = "month-done-badge";
+      badge.textContent = "All done ✓";
+      card.querySelector(".month-meta").appendChild(badge);
+    } else if (!allDone && badge) badge.remove();
+  });
+  POPUP_CATS.forEach(cat => {
+    const card = document.getElementById("pc-" + cat.id);
+    if (card) card.classList.toggle("all-done", cat.items.every(i => state[i.id]));
+  });
+}
+
+// ─── PROGRESS ──────────────────────────────────────────────────────────────
+
+function updateProgress() {
+  const calIds = CAL_EVENTS.map(e => e.id);
+  const popIds = POPUP_CATS.flatMap(c => c.items.map(i => i.id));
+  const all = [...calIds, ...popIds];
+  const done = all.filter(id => state[id]).length;
+  const pct = all.length ? Math.round(done / all.length * 100) : 0;
+
+  document.getElementById("done-count").textContent = done;
+  document.getElementById("total-count").textContent = all.length;
+  document.getElementById("prog-pct").textContent = pct + "%";
+  document.getElementById("prog-fill").style.width = pct + "%";
+
+  const calDone = calIds.filter(id => state[id]).length;
+  document.getElementById("cal-stats").innerHTML = `<span>${calDone}</span> of ${calIds.length} celebrations marked as done`;
+  const popDone = popIds.filter(id => state[id]).length;
+  document.getElementById("popup-stats").innerHTML = `<span>${popDone}</span> of ${popIds.length} pop-up ideas marked as done`;
+}
+
+// ─── FILTERS ───────────────────────────────────────────────────────────────
+
+function setFilter(section, filter, btn) {
+  if (section === "cal") calFilter = filter; else popupFilter = filter;
+  btn.closest(".filter-row").querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  applyFilters();
+}
+
+function applyFilters() {
+  document.querySelectorAll(".event-row").forEach(row => {
+    const isDone = row.classList.contains("done");
+    row.classList.toggle("hidden-f", calFilter === "done" ? !isDone : calFilter === "todo" ? isDone : false);
+  });
+  document.querySelectorAll(".popup-item").forEach(row => {
+    const isDone = row.classList.contains("done");
+    row.classList.toggle("hidden-f", popupFilter === "done" ? !isDone : popupFilter === "todo" ? isDone : false);
+  });
+}
+
+// ─── TABS ──────────────────────────────────────────────────────────────────
+
+function switchTab(t) {
+  document.querySelectorAll(".tab").forEach((b, i) => b.classList.toggle("active", i === (t === "cal" ? 0 : 1)));
+  document.getElementById("sec-cal").classList.toggle("visible", t === "cal");
+  document.getElementById("sec-popup").classList.toggle("visible", t === "popup");
+}
+
+function toggleDetail(detailEl, arrowEl) {
+  const open = detailEl.classList.toggle("open");
+  arrowEl.classList.toggle("open", open);
+}
+
+// ─── EXPORT ────────────────────────────────────────────────────────────────
+
+function exportDone() {
+  const calDone = CAL_EVENTS.filter(e => state[e.id]).map(e => "✓ " + e.name + " (" + e.day + ")");
+  const popDone = POPUP_CATS.flatMap(c => c.items.filter(i => state[i.id]).map(i => "✓ " + i.name + " [" + c.title + "]"));
+  const all = [...calDone, ...popDone];
+  if (!all.length) { alert("No activities marked as done yet!"); return; }
+  const text = "Quinyx Social Committee — Completed Activities\n\n" + all.join("\n");
+  navigator.clipboard.writeText(text).then(() => alert("Copied! (" + all.length + " activities)")).catch(() => {
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); document.body.removeChild(ta);
+    alert("Copied! (" + all.length + " activities)");
+  });
+}
+
+// ─── RENDER ────────────────────────────────────────────────────────────────
+
+function makeCheck(id) {
+  const c = document.createElement("div");
+  c.className = "ev-check";
+  if (state[id]) c.classList.add("checked");
+  c.addEventListener("click", e => { e.stopPropagation(); toggleDone(id); });
+  return c;
+}
+
+function makeChips(arr) {
+  return arr.map(t => `<span class="idea-chip">${t}</span>`).join("");
+}
+
+function renderCalendar() {
+  const grid = document.getElementById("months-grid");
+  MONTHS.forEach((m, mi) => {
+    const evs = CAL_EVENTS.filter(e => e.month === mi);
+    const card = document.createElement("div");
+    card.className = "month-card"; card.id = "mc-" + mi;
+    card.innerHTML = `<div class="month-header"><span class="month-name">${m}</span><div class="month-meta"><span class="month-count">${evs.length} event${evs.length!==1?"s":""}</span></div></div>`;
+    const list = document.createElement("div"); list.className = "events-list";
+    if (!evs.length) { list.innerHTML = '<div class="empty-month">Summer break — enjoy the sunshine!</div>'; }
+    else evs.forEach(ev => {
+      const row = document.createElement("div");
+      row.className = "event-row" + (state[ev.id] ? " done" : "");
+      row.dataset.itemId = ev.id;
+      const head = document.createElement("div"); head.className = "ev-head";
+      const dot = document.createElement("div"); dot.className = "ev-dot"; dot.style.background = ev.col;
+      const info = document.createElement("div"); info.className = "ev-info";
+      info.innerHTML = `<div class="ev-name">${ev.name}</div><div class="ev-sub ${ev.cause?"cause":""}">${ev.day} · ${ev.tag}</div>`;
+      const arrow = document.createElement("div"); arrow.className = "ev-arrow"; arrow.textContent = "▾";
+      head.appendChild(makeCheck(ev.id)); head.appendChild(dot); head.appendChild(info); head.appendChild(arrow);
+      const detail = document.createElement("div"); detail.className = "ev-detail";
+      detail.innerHTML = `<div class="ev-body">${ev.body}</div><div class="ideas-label">Ideas for the office</div><div class="ideas-chips">${makeChips(ev.ideas)}</div>`;
+      head.addEventListener("click", () => toggleDetail(detail, arrow));
+      row.appendChild(head); row.appendChild(detail); list.appendChild(row);
+    });
+    card.appendChild(list); grid.appendChild(card);
+  });
+}
+
+function renderPopups() {
+  const grid = document.getElementById("popup-grid");
+  POPUP_CATS.forEach(cat => {
+    const card = document.createElement("div"); card.className = "popup-cat-card"; card.id = "pc-" + cat.id;
+    card.innerHTML = `<div class="popup-cat-header"><div class="cat-icon-box" style="background:${cat.bg}">${cat.icon}</div><div><div class="cat-title">${cat.title}</div><div class="cat-sub">${cat.sub}</div></div></div>`;
+    const list = document.createElement("div"); list.className = "popup-items-list";
+    cat.items.forEach(item => {
+      const row = document.createElement("div");
+      row.className = "popup-item" + (state[item.id] ? " done" : "");
+      row.dataset.itemId = item.id;
+      const head = document.createElement("div"); head.className = "pi-head";
+      const info = document.createElement("div"); info.className = "pi-info";
+      info.innerHTML = `<div class="pi-name">${item.name}</div><div class="pi-sub">${item.sub}</div>`;
+      const badge = document.createElement("span");
+      badge.className = "effort-badge " + (item.e===1?"e1":"e2");
+      badge.textContent = item.e===1 ? "★ Minimal effort" : "★★ Low effort";
+      const arrow = document.createElement("div"); arrow.className = "ev-arrow"; arrow.textContent = "▾";
+      head.appendChild(makeCheck(item.id)); head.appendChild(info); head.appendChild(badge); head.appendChild(arrow);
+      const detail = document.createElement("div"); detail.className = "pi-detail";
+      detail.innerHTML = `<div class="ev-body">${item.body}</div><div class="ideas-label">How to run it</div><div class="ideas-chips">${makeChips(item.how)}</div>`;
+      head.addEventListener("click", () => toggleDetail(detail, arrow));
+      row.appendChild(head); row.appendChild(detail); list.appendChild(row);
+    });
+    card.appendChild(list); grid.appendChild(card);
+  });
+}
+
+renderCalendar();
+renderPopups();
+updateProgress();
+</script>
+</body>
+</html>
